@@ -1,4 +1,24 @@
-# Thunder_Data_Generator
+# Thunder Test Data Generator
+
+### ⚡ Automated Test Data Engineering & Synthetic Data Provisioning
+
+`thunder-test-data-generator` is a robust, lightweight Python utility designed to programmatically generate scalable, high-fidelity synthetic test data. Engineered to eliminate data provisioning bottlenecks, this tool helps QA and development teams dynamically produce structurally valid datasets for API mocking, database seeding, performance testing, and end-to-end integration workflows.
+
+By automating test data creation, the utility ensures consistent, repeatable test execution states while maintaining complete privacy compliance (zero production data reliance).
+
+---
+
+## ✨ Key Features & Capabilities
+
+- **Dynamic Schema Provisioning:** Easily configurable templates to generate structured data formats (such as custom JSON structures or CSV datasets).
+- **Scalable Data Volumetrics:** Optimized execution loops to seamlessly scale output from single test scenarios up to thousands of records for performance and load testing.
+- **Data Integrity & Realism:** Generates realistic mock profiles, strings, numeric intervals, and identifiers tailored to complex enterprise business logic.
+- **Zero Third-Party Data Drift:** Ensures completely isolated, deterministic, and sanitised test data for localized or CI/CD runner execution.
+
+---
+
+## 🛠️ Getting Started & Prerequisites
+
 # Install Python
 
 **IMPORTANT ---->>>>  This script needs Python 3.8 or above**
