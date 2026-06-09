@@ -1,11 +1,8 @@
 jinja2
 pandas
 faker
-selenium
 requests
 PyYaml
-jinja2
-pymongo
-pymongo[srv]
-pillow>=9.0.0
 numpy>=1.22.0
+python-dotenv
+pytest

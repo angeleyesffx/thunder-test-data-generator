@@ -1,0 +1,32 @@
+# Secrets — never commit these
+.env
+token_vars.sh
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+*.egg-info/
+dist/
+build/
+
+# Generated output
+csv_generated/
+json_generated/
+request_results/
+*.json.out
+
+# Test cache
+.pytest_cache/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp

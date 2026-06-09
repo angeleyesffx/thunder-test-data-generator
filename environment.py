@@ -1,15 +1,23 @@
+from __future__ import annotations
+
+import logging
 import os
 from collections import defaultdict
 import yaml
 import argparse
 import random
 import sys
+from dotenv import load_dotenv
 
-from commons.randomGenerator import create_param_dict, random_data_generator
+from commons.randomGenerator import create_param_dict, define_country_fake_data, random_data_generator
+
+load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 
 class Config(object):
-    def __init__(self, environment, flow, config_yaml, countries, services, methods, versions, execute):
+    def __init__(self, environment, flow, config_yaml, countries, services, methods, versions, execute, ssl_verify):
         self.environment = environment
         self.flow = flow
         self.config_yaml = config_yaml
@@ -18,6 +26,7 @@ class Config(object):
         self.methods = methods
         self.versions = versions
         self.execute = execute
+        self.ssl_verify = ssl_verify
 
 
 def parse_args():
@@ -30,6 +39,10 @@ def parse_args():
     parser.add_argument('-VERSIONS', help='versions', dest='versions')
     parser.add_argument('-FLOW', help='flow', dest='flow')
     parser.add_argument('-e', '--execute', action='store_true', help='enable the long listing format')
+    parser.add_argument('--no-ssl-verify', action='store_true', dest='no_ssl_verify',
+                        help='disable SSL certificate verification (use only for internal/self-signed environments)')
+    parser.add_argument('-v', '--verbose', action='store_true', dest='verbose',
+                        help='enable debug-level logging')
     return parser.parse_args(sys.argv[1:])
 
 
@@ -40,9 +53,7 @@ def read_yml_file(yml_file_name):
     file_path = os.path.dirname(__file__) + "/" + yml_file_name + ".yml"
     if os.path.exists(file_path):
         with open(file_path) as file:
-            data = yaml.full_load(file)
-            file.close()
-            return data
+            return yaml.full_load(file)
     else:
         raise FileNotFoundError("File does not exist in the path {0}".format(file_path))
 
@@ -59,10 +70,10 @@ def select_the_config_file(config_yaml):
 def select_the_environment(environment, config_yaml):
     environments = select_the_config_file(config_yaml)
     if environment is None:
-        print("Executing DataCreation in SIT environment...")
+        logger.info("Executing DataCreation in SIT environment...")
         return environments.get("sit")
     else:
-        print("Executing DataCreation in ", environment, " environment...")
+        logger.info("Executing DataCreation in %s environment...", environment)
         return environments.get(environment)
 
 
@@ -76,7 +87,7 @@ def select_the_execution_flow(flow):
 
 config = Config(select_the_environment(args.environment, args.config_yaml), select_the_execution_flow(args.flow),
                 select_the_config_file(args.config_yaml), args.countries, args.services, args.methods, args.versions,
-                args.execute)
+                args.execute, not args.no_ssl_verify)
 
 
 def check_for_error_ir_order(execution_flows):
@@ -86,7 +97,8 @@ def check_for_error_ir_order(execution_flows):
 
     for flow_order, flow_names in flow_counter_list.items():
         if len(flow_names) > 1:
-            print(f"WARN - Flows with same order '{flow_order}': {', '.join(flow_names)}")
+            logger.warning(
+                "Flows with same execution_order '%s': %s", flow_order, ', '.join(flow_names))
 
 
 def get_countries():
@@ -111,7 +123,7 @@ def get_services(country):
     elif services_list is None and config.flow is not None:
         execution_flow = list(config.flow.get("execution_flows").get(args.flow).items())
         check_for_error_ir_order(execution_flow)
-        list(config.flow).sort(key=lambda e: e[1]['execution_order'] if 'execution_order' in e[1] else 0)
+        execution_flow.sort(key=lambda e: e[1].get('execution_order', 0))
         return [value[0] for value in execution_flow]
     else:
         services = services_list.split(",")
@@ -160,6 +172,10 @@ def get_execute_flag():
     return config.execute
 
 
+def get_ssl_verify():
+    return config.ssl_verify
+
+
 def get_config_from_country(country, key):
     config_country = config.environment.get("countries").get(country).get(key)
     return config_country
@@ -183,10 +199,7 @@ def get_config_from_version(country, service, method, version, key):
 
 
 def check_if_config_country_exist(country):
-    if config.environment.get("countries").get(country) is not None:
-        return True
-    else:
-        return False
+    return config.environment.get("countries").get(country) is not None
 
 
 def check_if_config_service_exist(country, service):
@@ -194,18 +207,12 @@ def check_if_config_service_exist(country, service):
 
 
 def check_if_config_method_exist(country, service, method):
-    if config.environment.get("countries").get(country).get("services").get(service).get(method):
-        return True
-    else:
-        return False
+    return config.environment.get("countries").get(country).get("services").get(service).get(method) is not None
 
 
 def check_if_config_version_exist(country, service, method, version):
-    if config.environment.get("countries").get(country).get("services").get(service).get(method).get(
-            "versions").get(version):
-        return True
-    else:
-        return False
+    return config.environment.get("countries").get(country).get("services").get(service).get(method).get(
+        "versions").get(version) is not None
 
 
 def get_timezone(country):
@@ -230,137 +237,79 @@ def is_request_through_middleware_api(country, service, method):
     return request_through_middleware_api
 
 
-def get_auth_payload(country, service, method):
-    auth_token_type = get_auth_token_type(country, service, method)
-    if str(auth_token_type).upper == "B2B":
-        payload = "grant_type=" + str(
-            get_auth_grant_type(country, service, method)) + "&client_id=" + str(
-            get_auth_client_id(country, service, method)) + "&scope=" + str(
-            get_auth_scope(country, service, method)) + "&client_secret=" + str(
-            get_auth_client_secret(country, service, method)) + ""
-    else:
-            payload = "grant_type=" + str(
-            get_auth_grant_type(country, service, method)) + "&client_id=" + str(
-            get_auth_client_id(country, service, method)) + "&scope=" + str(
-            get_auth_scope(country, service, method)) + "&client_secret=" + str(
-            get_auth_client_secret(country, service, method)) + "&username=" + str(
-            get_auth_username(country, service, method)) + "&password=" + str(
-            get_auth_password(country, service, method)) + "&response_type=" + str(
-            get_auth_response_type(country, service, method)) + ""
-    return payload
+def _get_auth_field(country: str, service: str, method: str, field: str, method_key: str | None = None) -> str:
+    if is_request_through_middleware_api(country, service, method):
+        return str(get_config_from_country(country, f"middleware_api_{field}"))
+    return str(get_config_from_method(country, service, method, method_key or field))
 
 
 def get_auth_token(country, service, method):
-    if is_request_through_middleware_api(country, service, method):
-        return str(get_config_from_country(country, "middleware_api_auth_token"))
-    else:
-        return str(get_config_from_method(country, service, method, "auth_token"))
+    return _get_auth_field(country, service, method, "auth_token")
 
 
 def get_auth_token_type(country, service, method):
-    if is_request_through_middleware_api(country, service, method):
-        return str(get_config_from_country(country, "middleware_api_auth_token_type"))
-    else:
-        return str(get_config_from_method(country, service, method, "auth_token_type"))
+    return _get_auth_field(country, service, method, "auth_token_type")
 
 
 def get_vendor_id(country, service, method):
-    if is_request_through_middleware_api(country, service, method):
-        vendorId = str(get_config_from_country(country, "middleware_api_vendor_id"))
-        return vendorId
-    else:
-        vendorId = str(get_config_from_method(country, service, method, "auth_vendor_id"))
-        return vendorId
+    return _get_auth_field(country, service, method, "vendor_id", method_key="auth_vendor_id")
 
 
 def get_auth_type(country, service, method):
-    if is_request_through_middleware_api(country, service, method):
-        auth_type = str(get_config_from_country(country, "middleware_api_auth_type"))
-        return auth_type
-    else:
-        auth_type = str(get_config_from_method(country, service, method, "auth_type"))
-        return auth_type
+    return _get_auth_field(country, service, method, "auth_type")
 
 
 def get_auth_method(country, service, method):
-    if is_request_through_middleware_api(country, service, method):
-        auth_method = str(get_config_from_country(country, "middleware_api_auth_method"))
-        return auth_method
-    else:
-        auth_method = str(get_config_from_method(country, service, method, "auth_method"))
-        return auth_method
+    return _get_auth_field(country, service, method, "auth_method")
 
 
 def get_auth_url(country, service, method):
-    if is_request_through_middleware_api(country, service, method):
-        auth_url = str(get_config_from_country(country, "middleware_api_auth_url"))
-        return auth_url
-    else:
-        auth_url = str(get_config_from_method(country, service, method, "auth_url"))
-        return auth_url
+    return _get_auth_field(country, service, method, "auth_url")
 
 
 def get_auth_scope(country, service, method):
-    if is_request_through_middleware_api(country, service, method):
-        auth_scope = str(get_config_from_country(country, "middleware_api_auth_scope"))
-        return auth_scope
-    else:
-        auth_scope = str(get_config_from_method(country, service, method, "auth_scope"))
-        return auth_scope
+    return _get_auth_field(country, service, method, "auth_scope")
 
 
 def get_auth_grant_type(country, service, method):
-    if is_request_through_middleware_api(country, service, method):
-        auth_grant_type = str(get_config_from_country(country, "middleware_api_auth_grant_type"))
-        return auth_grant_type
-    else:
-        auth_grant_type = str(get_config_from_method(country, service, method, "auth_grant_type"))
-        return auth_grant_type
+    return _get_auth_field(country, service, method, "auth_grant_type")
 
 
 def get_auth_client_id(country, service, method):
-    if is_request_through_middleware_api(country, service, method):
-        auth_client_id = str(get_config_from_country(country, "middleware_api_auth_client_id"))
-        return auth_client_id
-    else:
-        auth_client_id = str(get_config_from_method(country, service, method, "auth_client_id"))
-        return auth_client_id
+    return _get_auth_field(country, service, method, "auth_client_id")
 
 
 def get_auth_client_secret(country, service, method):
-    if is_request_through_middleware_api(country, service, method):
-        auth_client_secret = str(get_config_from_country(country, "middleware_api_auth_client_secret"))
-        return auth_client_secret
-    else:
-        auth_client_secret = str(get_config_from_method(country, service, method, "auth_client_secret"))
-        return auth_client_secret
+    return _get_auth_field(country, service, method, "auth_client_secret")
 
 
 def get_auth_username(country, service, method):
-    if is_request_through_middleware_api(country, service, method):
-        auth_username = str(get_config_from_country(country, "middleware_api_auth_username"))
-        return auth_username
-    else:
-        auth_username = str(get_config_from_method(country, service, method, "auth_username"))
-        return auth_username
+    return _get_auth_field(country, service, method, "auth_username")
 
 
 def get_auth_password(country, service, method):
-    if is_request_through_middleware_api(country, service, method):
-        auth_password = str(get_config_from_country(country, "middleware_api_auth_password"))
-        return auth_password
-    else:
-        auth_password = str(get_config_from_method(country, service, method, "auth_password"))
-        return auth_password
+    return _get_auth_field(country, service, method, "auth_password")
 
 
 def get_auth_response_type(country, service, method):
-    if is_request_through_middleware_api(country, service, method):
-        auth_response_type = str(get_config_from_country(country, "middleware_api_auth_response_type"))
-        return auth_response_type
-    else:
-        auth_response_type = str(get_config_from_method(country, service, method, "auth_response_type"))
-        return auth_response_type
+    return _get_auth_field(country, service, method, "auth_response_type")
+
+
+def get_auth_payload(country, service, method):
+    auth_token_type = get_auth_token_type(country, service, method)
+    payload = (
+        f"grant_type={get_auth_grant_type(country, service, method)}"
+        f"&client_id={get_auth_client_id(country, service, method)}"
+        f"&scope={get_auth_scope(country, service, method)}"
+        f"&client_secret={get_auth_client_secret(country, service, method)}"
+    )
+    if str(auth_token_type).upper() != "B2B":
+        payload += (
+            f"&username={get_auth_username(country, service, method)}"
+            f"&password={get_auth_password(country, service, method)}"
+            f"&response_type={get_auth_response_type(country, service, method)}"
+        )
+    return payload
 
 
 def get_url(country, service, method, version):
@@ -384,29 +333,6 @@ def get_id_prefix(country, service, method, version):
     return id_prefix
 
 
-def define_country_fake_data(country):
-    if country in ['ar', 'co', 'de', 'do', 'ec', 'hn', 'pa', 'pe', 'py', 'sv', 'uy']:
-        selected_fake_data = 'es'
-    elif country == 'br':
-        selected_fake_data = 'pt_BR'
-    elif country == 'de':
-        selected_fake_data = 'en_DE'
-    elif country == 'ca':
-        selected_fake_data = 'en_CA'
-    elif country == 'gb':
-        selected_fake_data = 'en_GB'
-    elif country == 'mx':
-        selected_fake_data = 'es_MX'
-    elif country == 'pt':
-        selected_fake_data = 'pt_PT'
-    elif country == 'kr':
-        selected_fake_data = 'ko-KR'
-    elif country == 'us':
-        selected_fake_data = 'en_US'
-    else:
-        selected_fake_data = 'en'
-    return selected_fake_data
-
 
 def get_param_keys(country, service, method, version):
     param_keys = get_config_from_version(country, service, method, version, "param_keys")
@@ -424,7 +350,7 @@ def get_static_params(country, service, method, version):
 
 def create_static_params_dict(static_params):
     # using strip() and split()  methods
-    if static_params != 'None' and static_params != 'none' and static_params != '' and static_params is not None:
+    if static_params not in {None, ''}:
         result = dict((key.strip(), value.strip())
                       for key, value in (element.split('=')
                                          for element in static_params.split(',')))
@@ -432,16 +358,16 @@ def create_static_params_dict(static_params):
 
 
 
-def get_data_param_keys(country, params, static_params=None, prefix=None):
+def get_data_param_keys(country, params, static_params=None):
     language = define_country_fake_data(country)
     new_static_params = create_static_params_dict(static_params)
     param_dict = create_param_dict(params)
     data = None
-    if static_params is not None:
+    if new_static_params is not None:
         for key, value in new_static_params.items():
             param_dict[key] = value
     if param_dict is not None:
-        data = random_data_generator(param_dict, language, prefix)
+        data = random_data_generator(param_dict, language)
     return data
 
 
@@ -476,3 +402,7 @@ def get_csv_scenario(country, service, method, version):
 def get_amount_data_mass(country, service, method, version):
     amount_data_mass = get_config_from_version(country, service, method, version, "amount_data_mass")
     return amount_data_mass
+
+
+def get_multiple_line_config(country, service, method, version):
+    return get_config_from_version(country, service, method, version, "multiple_line_config")

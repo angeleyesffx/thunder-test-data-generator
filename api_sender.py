@@ -1,17 +1,21 @@
-import sys
+import logging
 import uuid
 import pandas as pd
-from commons.jsonDataBuilder import read_scenario_from_json
+
+from commons.jsonBuilder import read_scenario_from_json
 from commons.payloadBuilder import data_and_header_creation, create_payload
+from commons.randomGenerator import random_data_generator
 from commons.requestBuilder import send_request, create_header
-from commons.utils import random_data_generator
-from environment import args, get_services, get_countries, get_methods, get_versions, get_template_name, \
-    get_data_source, get_csv_scenario, check_if_config_country_exist, check_if_config_service_exist, \
-    check_if_config_method_exist, check_if_config_version_exist, define_country_fake_data, get_id_prefix, \
-    is_request_through_middleware_api, get_config_from_version, get_amount_data_mass, get_base_url, get_zip_payload, \
-    get_auth_url, \
-    get_auth_method, get_auth_type, get_timezone, get_auth_token, get_auth_payload, get_param_keys, get_static_params, \
-    get_csv_strategy
+from environment import (
+    args, get_services, get_countries, get_methods, get_versions, get_template_name,
+    get_data_source, get_csv_scenario, check_if_config_country_exist, check_if_config_service_exist,
+    check_if_config_method_exist, check_if_config_version_exist, define_country_fake_data, get_id_prefix,
+    is_request_through_middleware_api, get_config_from_version, get_amount_data_mass, get_base_url, get_zip_payload,
+    get_auth_url, get_auth_method, get_auth_type, get_timezone, get_auth_token, get_auth_payload, get_param_keys,
+    get_static_params, get_csv_strategy, get_multiple_line_config,
+)
+
+logger = logging.getLogger(__name__)
 
 
 def generate_data_flow(execution_flow):
@@ -23,7 +27,6 @@ def generate_data_flow(execution_flow):
         service = item[1]
         method = item[2]
         version = item[3]
-        prefix = get_id_prefix(country, service, method, version)
         keys = read_scenario_from_json("scenario", service, "flow/scenario.json")
         if keys is not None:
             for key in keys:
@@ -35,7 +38,7 @@ def generate_data_flow(execution_flow):
                 while index < quantity:
                     random_data = dict()
                     random_data[parent_key + str(index)] = data_type
-                    random_data_generator(random_data, define_country_fake_data(country), prefix)
+                    random_data_generator(random_data, define_country_fake_data(country))
                     for r in related_keys:
                         final_random_data[r + str(index)] = random_data[parent_key + str(index)]
                     index = index + 1
@@ -45,7 +48,7 @@ def generate_data_flow(execution_flow):
             new_flow.setdefault(k, []).append(item[k])
     df = pd.DataFrame.from_dict(new_flow, orient='index')
     df = df.transpose()
-    new_flow = df.fillna(method="ffill").to_dict("records")
+    new_flow = df.ffill().to_dict("records")
     return new_flow
 
 
@@ -54,19 +57,19 @@ def get_execution_list(arguments):
     failure_report = list()
     countries = get_countries() if arguments.countries is None else arguments.countries.split(",")
     for country in countries:
-        if check_if_config_country_exist(country) is True:
+        if check_if_config_country_exist(country):
             services = get_services(country) if arguments.services is None else arguments.services.split(",")
             for service in services:
-                if check_if_config_service_exist(country, service) is True:
+                if check_if_config_service_exist(country, service):
                     methods = get_methods(country, service) if arguments.methods is None else arguments.methods.split(
                         ",")
                     for method in methods:
-                        if check_if_config_method_exist(country, service, method) is True:
+                        if check_if_config_method_exist(country, service, method):
                             versions = get_versions(country, service,
                                                     method) if arguments.versions is None else arguments.versions.split(
                                 ",")
                             for version in versions:
-                                if check_if_config_version_exist(country, service, method, version) is True:
+                                if check_if_config_version_exist(country, service, method, version):
                                     execution_flow.append([country, service, method, version])
                                 else:
                                     message = "The version " + version.upper() + " from the method " + method.upper() + " in the service scope " + service.upper() + " from the country zone " + country.upper() + " isn't configure in the configuration yaml file."
@@ -107,14 +110,16 @@ def arrange_payload(data, country, service, method, version, multiple_request,
     return payload
 
 
-def arrange_data(prefix, scenario, data_flow, country, service, method, version):
+def arrange_data(scenario, data_flow, country, service, method, version):
     strategy = get_csv_strategy(country, service, method, version)
     data_source = get_data_source(country, service, method, version)
     param_keys = get_param_keys(country, service, method, version)
     static_params = get_static_params(country, service, method, version)
     amount_data_mass = get_amount_data_mass(country, service, method, version)
-    data, data_header = data_and_header_creation(strategy, data_source, country, prefix, scenario,
-                                                 data_flow, param_keys, static_params, amount_data_mass)
+    multiple_line_config = get_multiple_line_config(country, service, method, version)
+    data, data_header = data_and_header_creation(strategy, data_source, country, scenario,
+                                                 data_flow, param_keys, static_params, amount_data_mass,
+                                                 multiple_line_config)
     return data, data_header
 
 
@@ -124,10 +129,8 @@ def thunder_exec(execution_flow, data_flow):
         service = item[1]
         method = item[2]
         version = item[3]
-        print("Executing the country: ", country.upper())
-        print("Executing the service: ", service.upper())
-        print("Executing the method: ", method.upper())
-        print("Executing the version: ", version.upper())
+        logger.info("Executing country=%s service=%s method=%s version=%s",
+                    country.upper(), service.upper(), method.upper(), version.upper())
         csv_scenario = get_csv_scenario(country, service, method, version)
         url = get_base_url(country, service, method, version)
         multiple_request = get_config_from_version(country, service, method, version, "multiple_request")
@@ -135,13 +138,11 @@ def thunder_exec(execution_flow, data_flow):
         zip_payload_needed = get_zip_payload(country, service, method, version)
         request_name = country + "-" + service + "-" + method + "-" + version
         prefix = get_id_prefix(country, service, method, version)
-        print(
-            "Send the " + method.upper() + " request version " + version.upper() + " to the " + country.upper() + " zone")
-        print("service: ", service.upper())
+        logger.info("Sending %s %s to %s zone", method.upper(), version.upper(), country.upper())
         if not csv_scenario:
             csv_scenario = [None]
         for scenario in csv_scenario:
-            data, data_header = arrange_data(prefix, scenario, data_flow, country, service, method, version)
+            data, data_header = arrange_data(scenario, data_flow, country, service, method, version)
             headers = arrange_header(data_header, prefix, country, service, method, version, zip_payload_needed)
             payload = arrange_payload(data, country, service, method, version, multiple_request,
                                       request_through_middleware_api)
@@ -149,15 +150,3 @@ def thunder_exec(execution_flow, data_flow):
                          request_through_middleware_api,
                          zip_payload_needed)
 
-if __name__ == '__main__':
-    try:
-        flow, execution_list, report_list = get_execution_list(args)
-        data_flow = None
-        if flow:
-            data_flow = generate_data_flow(execution_list)
-
-        thunder_exec(execution_list, data_flow)
-        for report in report_list:
-            print(report)
-    except (KeyboardInterrupt, EOFError):
-        sys.exit(0)

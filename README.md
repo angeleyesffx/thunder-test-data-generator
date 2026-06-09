@@ -2,123 +2,150 @@
 
 ### ⚡ Automated Test Data Engineering & Synthetic Data Provisioning
 
-`thunder-test-data-generator` is a robust, lightweight Python utility designed to programmatically generate scalable, high-fidelity synthetic test data. Engineered to eliminate data provisioning bottlenecks, this tool helps QA and development teams dynamically produce structurally valid datasets for API mocking, database seeding, performance testing, and end-to-end integration workflows.
+`thunder-test-data-generator` is a config-driven Python CLI that generates synthetic test data by calling REST APIs. Built for QA teams working with services behind a middleware relay, it eliminates manual data provisioning while keeping secrets out of source control.
 
-By automating test data creation, the utility ensures consistent, repeatable test execution states while maintaining complete privacy compliance (zero production data reliance).
-
----
-
-## ✨ Key Features & Capabilities
-
-- **Dynamic Schema Provisioning:** Easily configurable templates to generate structured data formats (such as custom JSON structures or CSV datasets).
-- **Scalable Data Volumetrics:** Optimized execution loops to seamlessly scale output from single test scenarios up to thousands of records for performance and load testing.
-- **Data Integrity & Realism:** Generates realistic mock profiles, strings, numeric intervals, and identifiers tailored to complex enterprise business logic.
-- **Zero Third-Party Data Drift:** Ensures completely isolated, deterministic, and sanitised test data for localized or CI/CD runner execution.
+Key characteristics:
+- **Config-driven:** YAML-based configuration for environments, countries, services, and API endpoints
+- **Locale-aware fake data:** Faker integration with `pt_BR`, `en_US`, `es_MX`, and 20+ other locales
+- **Jinja2 templating:** Request bodies built from parameterised templates
+- **Parallel execution:** ThreadPoolExecutor for concurrent requests
+- **Two execution modes:** Debug (inspect payloads) and Execution (fire requests)
 
 ---
 
-## 🛠️ Getting Started & Prerequisites
+## Requirements
 
-# Install Python
+- Python 3.8+
+- pip
 
-**IMPORTANT ---->>>>  This script needs Python 3.8 or above**
+---
 
-### Step 1:
-Download and Install the latest version of Python on the official site: https://www.python.org/downloads/
-        
-You can find Installation Guide to your system here:  https://realpython.com/installing-python/
+## Setup
 
+### 1. Create and activate a virtual environment
 
-### Step 2: Install or Update pip
-        
-You can find Installation Guide to your system here:  https://pypi.org/project/pip/
-
-### Step 3: Create a virtual environment
-
-Inside Script folder, follow the steps described at:
-
-https://packaging.python.org/en/latest/guides/installing-using-pip-and-virtual-environments/#creating-a-virtual-environment
-
-Then activate the virtual environment by running the command:
-
-* `source env/bin/activate`
-
-### Step 4: Install all dependencies listed on requirements.txt inside your project
-        Execute the command line:
-        
-* `pip install -r requirements.txt` 
-
-You can find information more information about command line here: https://docs.python.org/3/using/cmdline.html
-
-You can find information more information about command line here: https://docs.python.org/3/using/cmdline.html
-
-**IMPORTANT ---->>>> If you install python3 instead python using in command line python3:**
-
-# Token environment variables
-The script `token_vars_sample.sh` is a sample of the token secrets used. Copy this file and update with your credentials
 ```bash
-cp token_vars_sample.sh token_vars.sh 
-```
-After the file `token_vars.sh` is updated you need to load the variables when open a new terminal with the command.
-```bash
-source token_vars.sh
+python -m venv .venv
+source .venv/bin/activate   # macOS / Linux
+.venv\Scripts\activate      # Windows
 ```
 
-## How to execute the script through the terminal? 
+### 2. Install dependencies
 
-**IMPORTANT ---->>>>  If you're not sure that ThunderData is building your requests correctly, check the information using Debug Mode. After corrected/verified run the application again, adding -e to your command line**
+```bash
+make install
+# or: pip install -r requirements.txt
+```
 
+### 3. Configure secrets
 
-**ThunderData has two distinct execution mode: Debug Mode and Execution Mode.**
+Copy the example env file and fill in your credentials:
 
+```bash
+cp .env.example .env
+```
 
-**DEBUG MODE:**
+Edit `.env` with your auth tokens and API keys. This file is `.gitignore`d — never commit it.
 
-Debug Mode is the default mode execution used to verify if the data is building correctly by ThunderData, during Debug Mode execution no request will be sent through the application. 
+### 4. Configure your environment
 
- On terminal, you can run the command line changing the variables as you wish and removing the -e instruction: 
+Copy the example config and adapt it to your target APIs:
 
+```bash
+cp config.example.yml config.yml
+```
 
-* `python3 main.py -CONFIG_YAML=(yaml_file_name) -FLOW=(execution_flow_name) -ENV= (environment) -COUNTRIES= (countries) -SERVICES= (services) -METHODS= (methods) -VERSIONS= (versions)` 
+See `config.example.yml` for a fully documented reference with all supported options.
 
+---
 
-**EXECUTION MODE:**
+## Running
 
-Execution Mode is used to send requests through the application. To do an execution in this mode you need to add the instruction -e in the command line. 
+### Debug Mode (default — no requests sent)
 
-This project was design to support some flexible parameters using environment variables. On terminal, you can run the command line changing the variables as you wish: 
+Use this to verify that Thunder is building payloads correctly before sending anything.
 
+```bash
+make debug
+# or:
+python main.py -CONFIG_YAML config -ENV sit
+```
 
-* `python3 main.py -CONFIG_YAML=(yaml_file_name) -FLOW=(execution_flow_name) -ENV= (environment) -COUNTRIES= (countries) -SERVICES= (services) -METHODS= (methods) -VERSIONS= (versions) -e` 
- 
+### Execution Mode (`-e` flag — requests are sent)
 
-If you want to change the default list of countries what Thunder Data will use in execution, to a specific list of countries, you can define it through the command line, using the environment variable “COUNTRIES”. Given the list, split by comma, the execution will proceed only by the countries that you defined.  
+```bash
+make run
+# or:
+python main.py -CONFIG_YAML config -ENV sit -e
+```
 
-If you want to change the default list of SERVICES what Thunder Data will use in execution, to a specific list of SERVICES, you can define it through the command line, using the environment variable “SERVICES”. Given the list, split by comma, the execution will proceed only by the SERVICES that you defined.  
+### CLI Reference
 
-If you want to change the default list of methods what Thunder Data will use in execution, to a specific list of methods, you can define it through the command line, using the environment variable “METHODS”. Given the list, split by comma, the execution will proceed only by the methods that you defined. 
+| Flag | Description |
+|------|-------------|
+| `-CONFIG_YAML <name>` | YAML config file to load (without `.yml`). Defaults to `config`. |
+| `-ENV <env>` | Environment key inside the config (e.g. `sit`, `dev`, `uat`). Defaults to `sit`. |
+| `-COUNTRIES <list>` | Comma-separated country codes to run (e.g. `br,ar`). Defaults to all configured. |
+| `-services <list>` | Comma-separated services to run. Defaults to all configured. |
+| `-METHODS <list>` | Comma-separated HTTP methods to run (e.g. `post,put`). |
+| `-VERSIONS <list>` | Comma-separated API versions to run (e.g. `v1,v2`). |
+| `-FLOW <name>` | Named execution flow from `flow/config_flow.yml`. |
+| `-e` / `--execute` | Enable Execution Mode. Without this flag, the tool runs in Debug Mode. |
+| `--no-ssl-verify` | Disable SSL certificate verification (for internal/self-signed environments only). |
+| `-v` / `--verbose` | Enable debug-level logging output. |
 
-If you want to change the default list of versions what Thunder Data will use in execution, to a specific list of versions, you can define it through the command line, using the environment variable “VERSIONS”. Given the list, split by comma, the execution will proceed only by the versions that you defined. 
+### Examples
 
-If you don’t know the order of flow you need, or you don’t know what microservices you need to call, you can choose one of the default flows that Thunder Data will use in execution. You can define it through the command line, using the environment variable “FLOW”.  
+Run debug mode for Brazil and Argentina, accounts service, POST and PUT, v1:
+```bash
+python main.py -ENV dev -COUNTRIES br,ar -services accounts -METHODS post,put -VERSIONS v1
+```
 
-**For example:** 
+Run execution mode with a specific config and flow:
+```bash
+python main.py -CONFIG_YAML my_config -FLOW onboarding_flow -e
+```
 
-If you want to execute the scenarios in the DEV environment only for Brazil and Argentina, on the Accounts entity, the methods POST, PUT,DELETE and versions V1 and V2 the command line that you need to run is:
-* `python3 main.py -ENV=dev -COUNTRIES=br,ar -SERVICES=accounts -METHODS=post,put,delete   -VERSIONS=v1,v2 -e` 
+Run everything with the default config in execution mode:
+```bash
+python main.py -e
+```
 
+---
 
-If you decide to run a specific Yaml file:
-* `python3 main.py -CONFIG_YAML= other_yaml -e` 
+## Testing
 
+```bash
+make test
+# or: pytest tests/ -v
+```
 
-If you want to run a specific flow:
-* `python3 main.py -FLOW= execution_flow_name -e` 
+The test suite covers the core data generation and file utilities (53 tests). A minimal `config_test.yml` is included so tests run without any production credentials.
 
-Or if you want to run everything using the default configuration:
-* `python3 main.py -e`
- 
+---
 
+## Project Structure
 
-
-
+```
+thunder-test-data-generator/
+├── main.py                  # Entry point
+├── api_sender.py            # Orchestrates execution flow and data generation
+├── environment.py           # Config loading, arg parsing, all getter functions
+├── commons/
+│   ├── randomGenerator.py   # Faker-backed synthetic data generation
+│   ├── requestBuilder.py    # HTTP request construction and execution
+│   ├── payloadBuilder.py    # Jinja2 template rendering
+│   ├── csvBuilder.py        # CSV data source strategies
+│   ├── jsonBuilder.py       # JSON file utilities
+│   ├── logger.py            # Logging setup
+│   └── utils.py             # Filesystem utilities
+├── templates/               # Jinja2 request body templates
+├── datasource/              # CSV data files
+├── flow/                    # Execution flow configs
+├── config.yml               # Your environment config (gitignored if it has secrets)
+├── config.example.yml       # Documented config reference
+├── .env                     # Secrets (gitignored)
+├── .env.example             # Secrets template
+├── Makefile                 # Common commands
+└── tests/                   # pytest test suite
+```

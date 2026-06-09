@@ -1,18 +1,23 @@
+from __future__ import annotations
+
+import logging
 from datetime import datetime, timedelta
 import random
 import uuid
 from faker import Faker
 
+logger = logging.getLogger(__name__)
 
-def generate_random_number(number_of_digits):
-    if number_of_digits is "" or number_of_digits is None:
+
+def generate_random_number(number_of_digits: int) -> str:
+    if number_of_digits == "" or number_of_digits is None:
         number_of_digits = 0
     begin = int('1' + '0' * (number_of_digits - 1))
     end = int('9' * number_of_digits)
     return str(random.randrange(begin, end))
 
 
-def define_country_fake_data(country):
+def define_country_fake_data(country: str) -> str:
     country_language_map = {
         "ar": "es_AR",
         "aq": "en",
@@ -44,17 +49,17 @@ def define_country_fake_data(country):
     return country_language_map.get(country, "en")
 
 
-def random_data_generator(param_dict, language):
+def random_data_generator(param_dict: dict, language: str) -> dict:
     fake = Faker(language)
 
     def custom_id_generator(pattern):
-        if pattern is "" or pattern is None:
+        if pattern == "" or pattern is None:
             return ''.join(str(uuid.uuid4()))
         chars_number = int(pattern)
         return ''.join(str(generate_random_number(chars_number)))
 
     def custom_date_generator(days):
-        if days is "" or days is None:
+        if days == "" or days is None:
             days = "1"
         date = datetime.today() + timedelta(days=(int(days) - 1))
         return date.strftime("%Y-%m-%d")
@@ -71,7 +76,7 @@ def random_data_generator(param_dict, language):
         'cpf': lambda _: fake.cpf().replace(".", "").replace("-", ""),
         'currency': lambda _: fake.currency_code(),
         'date': custom_date_generator,
-        'dcc_id': lambda: "DC-" + str(uuid.uuid4()),
+        'dcc_id': lambda _: "DC-" + str(uuid.uuid4()),
         'deal_id': lambda prefix: "DEAL-" + prefix + str(generate_random_number(10)),
         'email': lambda _: 'test_email_' + str(uuid.uuid4().hex) + '@example.com',
         'first_name': lambda _: fake.first_name(),
@@ -91,8 +96,8 @@ def random_data_generator(param_dict, language):
         'street': lambda _: fake.street_name(),
         'street_number': lambda _: fake.building_number(),
         'ssn': lambda _: fake.ssn(),
-        'uuid': lambda: str(uuid.uuid4()),
-        'uuid_hex': lambda: uuid.uuid4().hex,
+        'uuid': lambda _: str(uuid.uuid4()),
+        'uuid_hex': lambda _: uuid.uuid4().hex,
         'vendor_account_id': custom_id_generator,
         'zipcode': lambda _: fake.postcode()
     }
@@ -104,13 +109,12 @@ def random_data_generator(param_dict, language):
         if generator is not None:
             param_dict[key] = generator(pattern)
         else:
-            print(f'The type "{value_type}" for the key "{key}" cannot be generated. '
-                  f'Please choose the correct type or create a new type on method "random_data_generator".')
+            logger.warning('Unknown type "%s" for key "%s". Add it to random_data_generator.', value_type, key)
 
     return param_dict
 
 
-def create_param_dict(params):
-    if params not in {'None', 'none', '', None}:
+def create_param_dict(params: str | None) -> dict | None:
+    if params not in {None, ''}:
         return {key.strip(): value.strip() for key, value in (element.split(':', 1) for element in params.split(','))}
     return None

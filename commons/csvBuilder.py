@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 import csv
 import pandas as pd
@@ -22,10 +24,10 @@ from environment import get_data_param_keys
 def normalize(payload, expand_all=False):
     df = pd.json_normalize(json.loads(payload) if type(payload) == str else payload)
     # get first column that contains lists
-    col = df.applymap(type).astype(str).eq("<class 'list'>").all().idxmax()
+    col = df.map(type).astype(str).eq("<class 'list'>").all().idxmax()
     # explode list and expand embedded dictionaries
     df = df.explode(col).reset_index(drop=True)
-    while expand_all and df.applymap(type).astype(str).eq("<class 'list'>").any(axis=1).all() or df.applymap(type).astype(str).eq("<class 'dict'>").any(axis=1).all():
+    while expand_all and df.map(type).astype(str).eq("<class 'list'>").any(axis=1).all() or df.map(type).astype(str).eq("<class 'dict'>").any(axis=1).all():
         df = normalize(df.to_dict("records"))
     return df
 
@@ -80,7 +82,7 @@ def csv_writer(file_path, payload):
 
 
 
-def load_csv(csv_file_path):
+def load_csv(csv_file_path: str) -> list[str]:
     """
     Load all lines from a csv.
     Given this csv
@@ -107,15 +109,15 @@ def load_csv(csv_file_path):
     return new_json
 
 
-def load_csv_and_param_keys(country, csv_file_path, params_keys, static_params, prefix):
-        new_json = []
-        with contextlib.closing(open(csv_file_path, mode='r', encoding="utf8")) as csv_file:
-            csv_reader = csv.DictReader(csv_file)
-            for row in csv_reader:
-                param_keys = get_data_param_keys(country, params_keys, static_params, prefix)
-                row.update(param_keys)
-                new_json.append((json.dumps(row, sort_keys=True)))
-        return new_json
+def load_csv_and_param_keys(country: str, csv_file_path: str, params_keys: str, static_params: str) -> list[str]:
+    new_json = []
+    with contextlib.closing(open(csv_file_path, mode='r', encoding="utf8")) as csv_file:
+        csv_reader = csv.DictReader(csv_file)
+        for row in csv_reader:
+            param_keys = get_data_param_keys(country, params_keys, static_params)
+            row.update(param_keys)
+            new_json.append((json.dumps(row, sort_keys=True)))
+    return new_json
 
 
 def load_csv_multiple_lines(csv_file, group_key, output_list_name, list_fields):
@@ -166,7 +168,7 @@ def get_group_key(row, group_key):
     return "_".join(str(row[r]) for r in row if r in group_key)
 
 
-def get_scenario_data_csv(csv_file_path, test_scenario_id):
+def get_scenario_data_csv(csv_file_path: str, test_scenario_id: str) -> list[str]:
     """
     Load a data scenario from a csv in a single line.
     Given this csv
@@ -195,44 +197,24 @@ def get_scenario_data_csv(csv_file_path, test_scenario_id):
     return new_json
 
 
-def get_each_line_data_csv(csv_file_path):
-    """
-    Load a data scenario from a csv in a single line.
-    Given this csv
-         account_id    sku
-         80589819      BBDREN0330024M
-         #$%%          BCOR!!!!!!!!!!
-
-    The result will be:
-        [
-            {'account_id': '80589819', 'sku': 'BBDREN0330024M'}
-        ]
-
-     The yaml configuration file should be like this:
-                csv_strategy: single_line
-                csv_data_source: Some_csv_data_source
-    :param csv_file_path: csv file with data sample
-    :return:
-    """
-    new_json = []
-    with contextlib.closing(open(csv_file_path, mode='r', encoding="utf8")) as csv_file:
-        csv_reader = csv.DictReader(csv_file)
-        for row in csv_reader:
-            new_json.append(json.dumps(row, sort_keys=True))
-    return new_json
-
-
-def select_csv_strategy(country, csv_file_name, strategy, scenario=None, params_keys=None, static_params=None, prefix=None):
+def select_csv_strategy(country: str, csv_file_name: str, strategy: str, scenario: str | None = None, params_keys: str | None = None, static_params: str | None = None, multiple_line_config: dict | None = None) -> list[str]:
     cvs_file = os.path.join(os.getcwd(), "datasource", csv_file_name + ".csv")
     if os.path.exists(cvs_file):
         if str(strategy) == "scenario_line":
             csv_data = get_scenario_data_csv(cvs_file, scenario)
-        elif str(strategy) == "single_line":
-            csv_data = get_each_line_data_csv(cvs_file)
-        elif str(strategy) == "all_in":
+        elif str(strategy) in {"single_line", "all_in"}:
             csv_data = load_csv(cvs_file)
+        elif str(strategy) == "multiple_lines":
+            if multiple_line_config is None:
+                raise ValueError("Strategy 'multiple_lines' requires 'multiple_line_config' in your config.yml.")
+            csv_data = load_csv_multiple_lines(
+                cvs_file,
+                multiple_line_config["group_key"],
+                multiple_line_config["output_list_name"],
+                multiple_line_config["list_fields"],
+            )
         elif str(strategy) == "mixed_random_csv":
-            csv_data = load_csv_and_param_keys(country, cvs_file, params_keys, static_params, prefix)
+            csv_data = load_csv_and_param_keys(country, cvs_file, params_keys, static_params)
         else:
             csv_data = load_csv(cvs_file)
         return csv_data

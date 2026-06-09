@@ -1,0 +1,138 @@
+# =============================================================================
+# Thunder Test Data Generator — Example Configuration
+# =============================================================================
+# Copy this file, rename it (e.g. config.yml or config_sit.yml), and fill in
+# your environment values.  Pass the file name (without .yml) via:
+#
+#   python main.py -CONFIG_YAML <your_file> -ENV sit
+#
+# Run in DEBUG mode (no requests sent) by omitting the -e flag.
+# Add -e to actually send requests.  Use --no-ssl-verify only for
+# self-signed / internal environments.
+# =============================================================================
+
+sit:
+  # Base URL prepended to every endpoint path.
+  base_url: https://your-api-gateway.example.com
+
+  countries:
+    br:
+      timezone: America/Sao_Paulo
+      supported_languages: pt_BR
+
+      # -----------------------------------------------------------------------
+      # MIDDLEWARE section — only needed when routing through a relay API.
+      # Delete this block if you are calling services directly.
+      # -----------------------------------------------------------------------
+      middleware_api_auth_type: Bearer
+      middleware_api_auth_token: access_token
+      middleware_api_auth_method: post
+      middleware_api_auth_url: https://auth.example.com/oauth/token
+      middleware_api_auth_grant_type: client_credentials
+      middleware_api_auth_client_id: YOUR_CLIENT_ID
+      middleware_api_auth_scope: openid
+      middleware_api_auth_client_secret: YOUR_CLIENT_SECRET
+      middleware_api_vendor_id: YOUR_VENDOR_ID
+
+      services:
+        # Name of your service (used as a label in logs and output files).
+        product-service:
+
+          # HTTP method (post | put | patch | delete | get).
+          post:
+            # Set to true only if routing through the middleware relay above.
+            request_through_middleware_api: false
+
+            # Auth credentials for direct service calls.
+            # Delete this block if request_through_middleware_api is true.
+            auth_type: Bearer
+            auth_token: access_token
+            auth_method: post
+            auth_url: https://auth.example.com/oauth/token
+            auth_grant_type: client_credentials
+            auth_client_id: YOUR_CLIENT_ID
+            auth_scope: openid
+            auth_client_secret: YOUR_CLIENT_SECRET
+
+            versions:
+              v1:
+                # Path appended to base_url for middleware requests.
+                url: /middleware/product-service/v1/products
+                # Path appended to base_url for direct service requests.
+                value_stream_url: /product-service/v1/products
+
+                encoding_type: utf-8
+                # Short prefix embedded in generated IDs (e.g. PROD → PROD-<uuid>).
+                id_prefix: PROD
+                # How many data records to generate per run.
+                amount_data_mass: 5
+                # Jinja2 template file under templates/ (without .json extension).
+                # Set to None to skip templating and send raw generated data.
+                template_name: null
+                multiple_request: false
+                zip_payload: false
+
+                # -------------------------------------------------------------
+                # Data source — choose ONE of the strategies below and comment
+                # out the others.
+                # -------------------------------------------------------------
+
+                # Strategy A — generate all fields randomly using param_keys.
+                # Format: "field_name:data_type,..."
+                # Available types: uuid, uuid_hex, name, first_name, last_name,
+                #   email, phone, address, city, state, zipcode, cpf, cnpj,
+                #   float, integer|<digits>, account_id|<prefix>,
+                #   startDate|<days_offset>, expirationDate|<days>, order_id|<prefix>
+                csv_data_source: null
+                csv_strategy: null
+                param_keys: "product_id:uuid,name:name,email:email,price:float"
+                static_params: null
+
+                # Strategy B — load all rows from a CSV file.
+                # csv_data_source: my_products       # file in datasource/ (no .csv)
+                # csv_strategy: all_in
+                # param_keys: null
+                # static_params: null
+
+                # Strategy C — load one specific scenario row from a CSV.
+                # csv_data_source: my_products
+                # csv_strategy: scenario_line
+                # csv_scenario: "valid_data, invalid_data"
+                # param_keys: null
+
+                # Strategy D — combine CSV data with generated fields.
+                # csv_data_source: my_products
+                # csv_strategy: mixed_random_csv
+                # param_keys: "product_id:account_id|PROD,owner_email:email"
+                # static_params: "country=BR,active=true"
+
+    us:
+      timezone: America/New_York
+      supported_languages: en_US
+
+      services:
+        order-service:
+          post:
+            request_through_middleware_api: false
+            auth_type: Bearer
+            auth_token: access_token
+            auth_method: post
+            auth_url: https://auth.example.com/oauth/token
+            auth_grant_type: client_credentials
+            auth_client_id: YOUR_CLIENT_ID
+            auth_scope: openid
+            auth_client_secret: YOUR_CLIENT_SECRET
+
+            versions:
+              v2:
+                value_stream_url: /order-service/v2/orders
+                encoding_type: utf-8
+                id_prefix: ORD
+                amount_data_mass: 3
+                template_name: null
+                multiple_request: false
+                zip_payload: false
+                csv_data_source: null
+                csv_strategy: null
+                param_keys: "order_id:order_id|ORD,customer_name:name,email:email"
+                static_params: "currency=USD"
