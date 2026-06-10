@@ -1,0 +1,113 @@
+name: Thunder — Run
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        default: sit
+        type: choice
+        options: [sit, uat, prod]
+
+      config_yaml:
+        description: "Config file name (without .yml)"
+        required: true
+        default: config
+
+      countries:
+        description: "Countries — comma-separated (e.g. br,us). Leave blank to use config."
+        required: false
+
+      services:
+        description: "Services — comma-separated. Leave blank to use config."
+        required: false
+
+      methods:
+        description: "HTTP methods — comma-separated (e.g. post,get). Leave blank to use config."
+        required: false
+
+      versions:
+        description: "Versions — comma-separated (e.g. v1,v2). Leave blank to use config."
+        required: false
+
+      flow:
+        description: "Execution flow name (defined in flow/config_flow.yml). Leave blank to skip."
+        required: false
+
+      execute:
+        description: "Execute requests? (false = debug mode — no requests sent)"
+        required: true
+        default: "false"
+        type: choice
+        options: ["false", "true"]
+
+      ssl_verify:
+        description: "Verify SSL certificates? Disable only for internal/self-signed envs."
+        required: true
+        default: "true"
+        type: choice
+        options: ["true", "false"]
+
+      verbose:
+        description: "Enable verbose (debug-level) logging?"
+        required: true
+        default: "false"
+        type: choice
+        options: ["false", "true"]
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Create .env from secrets
+        run: |
+          cat <<EOF > .env
+          THUNDER_NUM_PARALLEL_REQUESTS=${{ secrets.THUNDER_NUM_PARALLEL_REQUESTS }}
+          THUNDER_AUTH_TYPE=${{ secrets.THUNDER_AUTH_TYPE }}
+          THUNDER_AUTH_TOKEN=${{ secrets.THUNDER_AUTH_TOKEN }}
+          THUNDER_AUTH_URL=${{ secrets.THUNDER_AUTH_URL }}
+          THUNDER_AUTH_GRANT_TYPE=${{ secrets.THUNDER_AUTH_GRANT_TYPE }}
+          THUNDER_AUTH_CLIENT_ID=${{ secrets.THUNDER_AUTH_CLIENT_ID }}
+          THUNDER_AUTH_SCOPE=${{ secrets.THUNDER_AUTH_SCOPE }}
+          THUNDER_AUTH_CLIENT_SECRET=${{ secrets.THUNDER_AUTH_CLIENT_SECRET }}
+          THUNDER_AUTH_VENDOR_ID=${{ secrets.THUNDER_AUTH_VENDOR_ID }}
+          EOF
+
+      - name: Run Thunder
+        run: |
+          ARGS="-CONFIG_YAML ${{ inputs.config_yaml }} -ENV ${{ inputs.environment }}"
+
+          [ -n "${{ inputs.countries }}" ] && ARGS="$ARGS -COUNTRIES ${{ inputs.countries }}"
+          [ -n "${{ inputs.services }}" ] && ARGS="$ARGS -services ${{ inputs.services }}"
+          [ -n "${{ inputs.methods }}"  ] && ARGS="$ARGS -METHODS ${{ inputs.methods }}"
+          [ -n "${{ inputs.versions }}" ] && ARGS="$ARGS -VERSIONS ${{ inputs.versions }}"
+          [ -n "${{ inputs.flow }}"     ] && ARGS="$ARGS -FLOW ${{ inputs.flow }}"
+
+          [ "${{ inputs.execute }}"    = "true" ] && ARGS="$ARGS -e"
+          [ "${{ inputs.ssl_verify }}" = "false" ] && ARGS="$ARGS --no-ssl-verify"
+          [ "${{ inputs.verbose }}"    = "true" ] && ARGS="$ARGS -v"
+
+          python main.py $ARGS
+
+      - name: Upload generated output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: thunder-output-${{ github.run_id }}
+          path: |
+            csv_generated/
+            json_generated/
+          if-no-files-found: ignore
+          retention-days: 7
