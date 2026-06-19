@@ -10,8 +10,8 @@ logger = logging.getLogger(__name__)
 
 
 def generate_random_number(number_of_digits: int) -> str:
-    if number_of_digits == "" or number_of_digits is None:
-        number_of_digits = 0
+    if not number_of_digits:
+        number_of_digits = 1
     begin = int('1' + '0' * (number_of_digits - 1))
     end = int('9' * number_of_digits)
     return str(random.randrange(begin, end))

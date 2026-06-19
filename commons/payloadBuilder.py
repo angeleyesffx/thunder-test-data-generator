@@ -63,7 +63,7 @@ def template_editor(json_template_name, data, multiple_request):
     if json_template_name is not None and data is not None:
         json_template = json_template_name + ".json"
         template = get_template_from_folder(os.path.join(os.getcwd(), "templates"), json_template)
-        if multiple_request and type(data) is list:
+        if multiple_request and isinstance(data, list):
             return [template.render(dict_list=[d]) for d in data]
         else:
             return template.render(dict_list=data)
@@ -112,15 +112,15 @@ def data_and_header_creation(strategy=None, data_source=None, country=None, scen
 
 def get_beautified_payload(json_template_name, payload):
     body_list = []
-    if type(payload) is not list:
+    if not isinstance(payload, list):
         body = payload.replace('\n', '').replace('"[', '[').replace(']"', ']').replace(
             '"{ ', '{').replace('}"', '}')
-        if type(payload) is dict:
+        if isinstance(payload, dict):
             body = json.dumps(payload)
         return beautify_json(json_template_name, body)
     else:
         for body in payload:
-            if type(body) is dict:
+            if isinstance(body, dict):
                 body_list.append(beautify_json(json_template_name, json.dumps(body)))
             else:
                 body_list.append(beautify_json(json_template_name, body))

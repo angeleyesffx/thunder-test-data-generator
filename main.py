@@ -3,7 +3,8 @@ import sys
 
 from api_sender import get_execution_list, generate_data_flow, thunder_exec
 from commons.logger import setup_logging
-from environment import args
+from commons.requestBuilder import get_execution_stats
+from environment import args, get_execute_flag
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +22,16 @@ def main():
 
         for report in report_list:
             logger.warning(report)
+
+        if get_execute_flag():
+            stats = get_execution_stats()
+            logger.info(
+                "--- Execution summary: %d sent | %d success | %d failure ---",
+                stats.total, stats.success, stats.failure,
+            )
+
+        has_failures = bool(report_list) or (get_execute_flag() and get_execution_stats().failure > 0)
+        sys.exit(1 if has_failures else 0)
 
     except (KeyboardInterrupt, EOFError):
         sys.exit(0)

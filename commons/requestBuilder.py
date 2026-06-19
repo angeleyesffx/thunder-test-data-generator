@@ -2,6 +2,7 @@ import gzip
 import json
 import logging
 import os
+import threading
 import time
 import calendar
 import io
@@ -15,6 +16,31 @@ from commons.csvBuilder import write_responses_in_csv
 from environment import get_execute_flag, get_ssl_verify
 
 logger = logging.getLogger(__name__)
+
+
+class _ExecutionStats:
+    def __init__(self):
+        self._lock = threading.Lock()
+        self.success = 0
+        self.failure = 0
+
+    def record(self, *, success: bool) -> None:
+        with self._lock:
+            if success:
+                self.success += 1
+            else:
+                self.failure += 1
+
+    @property
+    def total(self) -> int:
+        return self.success + self.failure
+
+
+_stats = _ExecutionStats()
+
+
+def get_execution_stats() -> _ExecutionStats:
+    return _stats
 
 
 def response_from_auth(method, url, payload):
@@ -75,7 +101,7 @@ def create_header(data_header, auth_url, auth_method, auth_type, auth_payload, t
 def zip_payload(payload: str) -> bytes:
     file = io.BytesIO()
     g = gzip.GzipFile(fileobj=file, mode='w')
-    if type(payload) is str:
+    if isinstance(payload, str):
         g.write(bytes(payload, "utf-8"))
     else:
         g.write(payload)
@@ -106,7 +132,7 @@ def send_requests_in_parallel(request_name, method, url, data, payload, headers,
 
 
 def send_request(request_name, method, url, headers, payload, data, multiple_request=False, request_through_middleware_api=False, zip_payload_needed=None):
-    if multiple_request and type(payload) is list:
+    if multiple_request and isinstance(payload, list):
         payload = [zip_payload(body) if zip_payload_needed else body for body in payload]
     else:
         headers = reduce(lambda a, b: dict(a, **b), headers)
@@ -122,7 +148,7 @@ def send_request(request_name, method, url, headers, payload, data, multiple_req
 def exec_request(*args):
     method, url, data, headers, payload, request_name, idx, element, response = args
     params = dict()
-    if type(headers) is list:
+    if isinstance(headers, list):
         new_headers = headers[idx]
         url_list = Template(url).substitute(data[idx]).format(data[idx].get("user_id"))
     else:
@@ -151,7 +177,7 @@ def select_request(request_name, method, url, data, payload, headers, multiple_r
 
 
 def evaluate_response(payload, responses, request_name, multiple_request, request_through_middleware_api):
-    if type(responses) == list:
+    if isinstance(responses, list):
         for idx, response in enumerate(responses):
             print_result(payload[idx], response, request_name, multiple_request, request_through_middleware_api)
     else:
@@ -159,7 +185,7 @@ def evaluate_response(payload, responses, request_name, multiple_request, reques
 
 def print_request_and_exit(request_name, method, url, headers, body_request, zip_payload_needed):
     logger.info("DEBUG MODE — fake token in use, no requests sent. Add -e to execute.")
-    if type(body_request) is not list:
+    if not isinstance(body_request, list):
         unzipped_payload = zlib.decompress(body_request, 16 + zlib.MAX_WBITS) if zip_payload_needed else body_request
         if type(unzipped_payload) is not bytes:
             unzipped_payload = bytearray(unzipped_payload, "utf-8")
@@ -172,26 +198,26 @@ def print_request_and_exit(request_name, method, url, headers, body_request, zip
         count = 1
         for req in body_request:
             unzipped_payload = zlib.decompress(req, 16 + zlib.MAX_WBITS) if zip_payload_needed else req
-            current_headers = headers[count - 1] if type(headers) is list else headers
+            current_headers = headers[count - 1] if isinstance(headers, list) else headers
             logger.info("METHOD: %s | URL: %s", method, url)
             logger.info("HEADERS: %s", current_headers)
-            if type(unzipped_payload) is not bytes and type(unzipped_payload) is not dict:
+            if not isinstance(unzipped_payload, (bytes, dict)):
                 unzipped_payload = bytearray(unzipped_payload, "utf-8")
                 logger.info("PAYLOAD:\n%s", unzipped_payload.decode("utf-8"))
                 write_json_file(f'\n\n{unzipped_payload.decode("utf-8")}\n', request_name + "req" + str(count))
-            if type(unzipped_payload) is bytes:
+            if isinstance(unzipped_payload, bytes):
                 logger.info("PAYLOAD:\n%s", unzipped_payload.decode("utf-8"))
                 write_json_file(f'\n\n{unzipped_payload.decode("utf-8")}\n', request_name + "req" + str(count))
-            if type(unzipped_payload) is dict:
+            if isinstance(unzipped_payload, dict):
                 logger.info("PAYLOAD: %s", unzipped_payload)
                 write_json_file(f'\n\n{unzipped_payload}\n', request_name + "req" + str(count))
             count = count + 1
 
 
 def _format_payload(payload) -> str:
-    if type(payload) is str:
+    if isinstance(payload, str):
         return payload.replace('\n', '').replace(' ', '')
-    if type(payload) is dict:
+    if isinstance(payload, dict):
         return json.dumps(payload).replace('\n', '').replace(' ', '')
     return ''.join(payload.decode("utf-8").split())
 
@@ -228,7 +254,10 @@ def print_result(payload, response, request_name, multiple_request, request_thro
         if not multiple_request:
             write_responses_in_csv(payload, request_name, params, multiple_request, request_through_middleware_api)
         logger.info("Report saved to csv_generated/ — filter by requestTraceId.")
+        _stats.record(success=True)
+        return response
     else:
         logger.info("Finished — status=%s traceId=%s request=%s", status, trace_id, request_body)
 
+    _stats.record(success=False)
     return response

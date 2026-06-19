@@ -42,6 +42,21 @@ class TestGenerateRandomNumber:
     def test_result_is_string(self):
         assert isinstance(generate_random_number(5), str)
 
+    def test_single_digit_boundary(self):
+        result = generate_random_number(1)
+        assert len(result) == 1
+        assert result.isdigit()
+
+    def test_zero_defaults_to_single_digit(self):
+        result = generate_random_number(0)
+        assert len(result) == 1
+        assert result.isdigit()
+
+    def test_none_defaults_to_single_digit(self):
+        result = generate_random_number(None)
+        assert len(result) == 1
+        assert result.isdigit()
+
 
 class TestDefineCountryFakeData:
     def test_brazil_returns_pt_br(self):

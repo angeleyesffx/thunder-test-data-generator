@@ -8,7 +8,7 @@ install:
 	$(PIP) install -r requirements.txt
 
 test:
-	$(PYTHON) -m pytest tests/ -v
+	$(PYTHON) -m pytest tests/ -v --cov=. --cov-report=term-missing
 
 debug:
 	$(PYTHON) main.py -CONFIG_YAML config -ENV sit

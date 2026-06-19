@@ -6,3 +6,4 @@ PyYaml
 numpy>=1.22.0
 python-dotenv
 pytest
+pytest-cov
