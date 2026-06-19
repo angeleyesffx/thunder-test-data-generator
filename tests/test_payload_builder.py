@@ -3,14 +3,15 @@ from commons.payloadBuilder import data_and_header_creation
 
 
 class TestDataAndHeaderCreation:
-    def test_generates_correct_record_count(self):
+    @pytest.mark.parametrize("amount", [1, 3, 5])
+    def test_generates_correct_record_count(self, amount):
         data, headers = data_and_header_creation(
             param_keys="name:name,email:email",
             country="br",
-            amount_data_mass=3,
+            amount_data_mass=amount,
         )
-        assert len(data) == 3
-        assert len(headers) == 3
+        assert len(data) == amount
+        assert len(headers) == amount
 
     def test_zero_amount_returns_empty_lists(self):
         data, headers = data_and_header_creation(
@@ -21,14 +22,13 @@ class TestDataAndHeaderCreation:
         assert data == []
         assert headers == []
 
-    def test_single_record_boundary(self):
-        data, headers = data_and_header_creation(
-            param_keys="name:name",
-            country="br",
-            amount_data_mass=1,
-        )
-        assert len(data) == 1
-        assert len(headers) == 1
+    def test_none_amount_raises_type_error(self):
+        with pytest.raises(TypeError):
+            data_and_header_creation(
+                param_keys="name:name",
+                country="br",
+                amount_data_mass=None,
+            )
 
     def test_data_contains_expected_keys(self):
         data, _ = data_and_header_creation(

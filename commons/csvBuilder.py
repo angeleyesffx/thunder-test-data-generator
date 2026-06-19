@@ -216,7 +216,10 @@ def select_csv_strategy(country: str, csv_file_name: str, strategy: str, scenari
         elif str(strategy) == "mixed_random_csv":
             csv_data = load_csv_and_param_keys(country, cvs_file, params_keys, static_params)
         else:
-            csv_data = load_csv(cvs_file)
+            raise ValueError(
+                f"Unknown CSV strategy '{strategy}'. "
+                "Valid values: scenario_line, single_line, all_in, multiple_lines, mixed_random_csv."
+            )
         return csv_data
     else:
         raise FileNotFoundError("File does not exist in the path {0}".format(cvs_file))

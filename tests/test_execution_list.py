@@ -56,9 +56,9 @@ class TestGetExecutionList:
 
     def test_multiple_countries_accumulates_failures(self):
         _, execution_list, failure_report = get_execution_list(_args(countries="br,ar,xx"))
-        # br is valid, ar and xx are not configured
         assert ["br", "test-service", "post", "v1"] in execution_list
-        assert len(failure_report) == 2
+        assert any("AR" in msg for msg in failure_report)
+        assert any("XX" in msg for msg in failure_report)
 
     def test_explicit_valid_args_produce_execution_list(self):
         _, execution_list, failure_report = get_execution_list(
