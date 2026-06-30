@@ -127,6 +127,23 @@ class TestRandomDataGenerator:
         result = random_data_generator({"start": "startDate|0"}, "en_US")
         datetime.strptime(result["start"], "%Y-%m-%d")
 
+    def test_id_with_digit_count_generates_number_of_correct_length(self):
+        result = random_data_generator({"my_id": "id|8"}, "en_US")
+        assert len(str(result["my_id"])) == 8
+        assert str(result["my_id"]).isdigit()
+
+    def test_id_without_pattern_generates_uuid(self):
+        result = random_data_generator({"my_id": "id"}, "en_US")
+        val = str(result["my_id"])
+        assert len(val) == 36
+        assert val.count("-") == 4
+
+    def test_startdate_with_empty_pattern_defaults_to_today(self):
+        from datetime import date
+        result = random_data_generator({"d": "startDate|"}, "en_US")
+        parsed = datetime.strptime(result["d"], "%Y-%m-%d").date()
+        assert parsed == date.today()
+
     def test_generates_multiple_fields(self):
         params = {"name": "name", "email": "email", "id": "uuid"}
         result = random_data_generator(params, "en_US")

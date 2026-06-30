@@ -1,5 +1,7 @@
 # Thunder Test Data Generator
 
+[![CI](https://github.com/angeleyesffx/thunder-test-data-generator/actions/workflows/ci.yml/badge.svg)](https://github.com/angeleyesffx/thunder-test-data-generator/actions/workflows/ci.yml)
+
 ### ⚡ Automated Test Data Engineering & Synthetic Data Provisioning
 
 `thunder-test-data-generator` is a config-driven Python CLI that generates synthetic test data by calling REST APIs. Built for QA teams working with services behind a middleware relay, it eliminates manual data provisioning while keeping secrets out of source control.
@@ -120,7 +122,7 @@ make test
 # or: pytest tests/ -v
 ```
 
-The test suite covers the core data generation and file utilities (53 tests). A minimal `config_test.yml` is included so tests run without any production credentials.
+The test suite covers the core data generation and file utilities (95 tests). A minimal `config_test.yml` is included so tests run without any production credentials.
 
 ---
 
